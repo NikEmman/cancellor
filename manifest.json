@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Cancellor",
+  "version": "1.0",
+  "description": "Adds a browser action icon to the toolbar. Add file and start the automation.",
+  "homepage_url": "https://github.com/NikEmman/cancellor",
+  "icons": {
+    "48": "icons/peon-48.png"
+  },
+  "action": {
+    "default_icon": {
+      "32": "icons/peon-32.png"
+    },
+    "default_title": "cancellor",
+    "default_popup": "popup/popup.html"
+  },
+  "permissions": [
+    "activeTab",
+    "downloads",
+    "scripting",
+    "notifications",
+    "storage"
+  ],
+  "host_permissions": ["<all_urls>"]
+}
