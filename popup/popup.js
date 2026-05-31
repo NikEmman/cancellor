@@ -1,9 +1,67 @@
-let idNumbers = [];
+let idNumbers = []; // parsed from textarea (not yet queued)
+let queuedIds = []; // persistent queue
 let currentTabId = null;
 
 const textarea = document.getElementById("csv-input");
 const statusEl = document.getElementById("parse-status");
 const startBtn = document.getElementById("start");
+const addToQueueBtn = document.getElementById("add-to-queue");
+const queueCountEl = document.getElementById("queue-count");
+const queueListEl = document.getElementById("queue-list");
+const clearQueueBtn = document.getElementById("clear-queue-btn");
+
+function updateQueueDisplay() {
+  if (queuedIds.length === 0) {
+    queueCountEl.textContent = "Ουρά: κενή";
+    queueCountEl.style.color = "#9ca3af";
+    queueListEl.textContent = "";
+    clearQueueBtn.disabled = true;
+    startBtn.disabled = true;
+  } else {
+    queueCountEl.innerHTML = `<span style="color:#16a34a;">Ουρά: ${queuedIds.length} ταυτότητες</span>`;
+    queueListEl.textContent = queuedIds.map((x) => x.number).join("  ·  ");
+    clearQueueBtn.disabled = false;
+    startBtn.disabled = false;
+  }
+}
+
+async function loadQueue() {
+  const stored = await chrome.storage.local.get("queuedIds");
+  queuedIds = stored.queuedIds || [];
+  updateQueueDisplay();
+}
+
+async function saveQueue() {
+  await chrome.storage.local.set({ queuedIds });
+}
+
+loadQueue();
+
+clearQueueBtn.addEventListener("click", () => {
+  queuedIds = [];
+  saveQueue();
+  updateQueueDisplay();
+});
+
+addToQueueBtn.addEventListener("click", () => {
+  if (idNumbers.length === 0) return;
+
+  const existingNumbers = new Set(queuedIds.map((x) => x.number));
+  const newIds = idNumbers.filter((x) => !existingNumbers.has(x.number));
+  const dupes = idNumbers.length - newIds.length;
+
+  queuedIds = [...queuedIds, ...newIds];
+  saveQueue();
+  updateQueueDisplay();
+
+  textarea.value = "";
+  idNumbers = [];
+
+  let msg = `<span class="text-green-600">Προστέθηκαν ${newIds.length} ταυτότητες στην ουρά.</span>`;
+  if (dupes > 0) msg += ` <span class="text-yellow-600">(${dupes} διπλότυπα παραλείφθηκαν)</span>`;
+  statusEl.innerHTML = msg;
+  addToQueueBtn.disabled = true;
+});
 
 chrome.storage.local.get("partialResults").then((result) => {
   if (result.partialResults && result.partialResults.length > 0) {
@@ -14,18 +72,10 @@ chrome.storage.local.get("partialResults").then((result) => {
       downloadCSV(result.partialResults);
       chrome.storage.local.remove("partialResults");
       statusEl.textContent = "";
-      startBtn.disabled = false;
+      updateQueueDisplay();
     };
 
     setTimeout(performDownload, 2000);
-
-    textarea.addEventListener("paste", () => {
-      setTimeout(() => {
-        if (textarea.value.trim()) {
-          performDownload();
-        }
-      }, 50);
-    });
   }
 });
 
@@ -34,15 +84,16 @@ const autoParse = () => {
   if (!text) {
     statusEl.textContent = "";
     idNumbers = [];
+    addToQueueBtn.disabled = true;
     return;
   }
   try {
     idNumbers = parseExcelData(text);
-    statusEl.innerHTML = `<span class="text-green-600">Φορτώθηκαν ${idNumbers.length} ταυτότητες – Έτοιμοι!</span>`;
-    startBtn.disabled = false;
+    statusEl.innerHTML = `<span class="text-green-600">${idNumbers.length} ταυτότητες έτοιμες για προσθήκη.</span>`;
+    addToQueueBtn.disabled = false;
   } catch (err) {
     statusEl.innerHTML = `<span class="text-red-600">Error: ${err.message}</span>`;
-    startBtn.disabled = true;
+    addToQueueBtn.disabled = true;
     idNumbers = [];
   }
 };
@@ -214,8 +265,15 @@ async function extractPersonData() {
           birthPlace: getValue("Τόπος Γέννησης").split(" ")[0],
         };
 
+        const adtAntLabel = Array.from(document.querySelectorAll("label")).find(
+          (l) => l.textContent.trim() === "Α.Δ.Τ. Αντικατάστασης",
+        );
+        const oldId = adtAntLabel?.closest("tr")?.cells?.[1]?.textContent.trim() ?? "";
+
         if (!fields.surname && !fields.firstName) {
           reject(new Error("Name fields empty – possible parsing issue"));
+        } else if (!oldId) {
+          reject(new Error("Α.Δ.Τ. Αντικατάστασης κενό – δεν βρέθηκε παλαιό δελτίο"));
         } else {
           resolve({
             success: true,
@@ -225,6 +283,7 @@ async function extractPersonData() {
             motherName: fields.motherName.trim(),
             birthDate: fields.birthDate.trim(),
             birthPlace: fields.birthPlace.trim(),
+            oldId,
           });
         }
       };
@@ -291,7 +350,7 @@ async function extractApplicationDate() {
         }
 
         if (attempts >= maxAttempts) {
-          reject(new Error("Ημερομηνία Κλήσης not found on page"));
+          resolve({ success: true, date: "" });
         } else {
           attempts++;
           setTimeout(check, pollInterval);
@@ -302,101 +361,7 @@ async function extractApplicationDate() {
     });
   });
 
-  if (!result.result || !result.result.success) {
-    throw new Error(result.result?.error || "Failed to extract application date");
-  }
-
-  return result.result.date;
-}
-
-// Step 5: Click "Άλλα Δελτία" tab
-async function clickAltaDeltiTab() {
-  await execute(function () {
-    const tab = document.getElementById("showDetail2");
-    if (!tab) throw new Error("Tab 'Άλλα Δελτία' (showDetail2) not found");
-    tab.click();
-  });
-
-  await new Promise((r) => setTimeout(r, 2800));
-}
-
-// Step 6: Find old ID in "Άλλα Δελτία" table and click its link
-async function findAndClickOldId(searchedId) {
-  const [result] = await execute(function (id) {
-    return new Promise((resolve, reject) => {
-      const pollInterval = 200;
-      const maxAttempts = 50;
-      let attempts = 0;
-
-      const check = () => {
-        const container = document.getElementById("relIdsResultsTable");
-        if (!container) {
-          if (attempts >= maxAttempts)
-            reject(new Error("Πίνακας relIdsResultsTable δεν βρέθηκε (Άλλα Δελτία)"));
-          else {
-            attempts++;
-            setTimeout(check, pollInterval);
-          }
-          return;
-        }
-
-        // Find column index of "Α.Δ.Τ. Αντικατάστασης"
-        const headerSpans = container.querySelectorAll("th span.xq");
-        let prevIdColIndex = -1;
-        for (let i = 0; i < headerSpans.length; i++) {
-          if (headerSpans[i].textContent.trim() === "Α.Δ.Τ. Αντικατάστασης") {
-            prevIdColIndex = i;
-            break;
-          }
-        }
-        if (prevIdColIndex === -1) {
-          reject(new Error("Στήλη 'Α.Δ.Τ. Αντικατάστασης' δεν βρέθηκε"));
-          return;
-        }
-
-        // Find the data row matching our ID (rows with td elements only)
-        const rows = container.querySelectorAll("tbody tr");
-        for (const row of rows) {
-          const cells = row.querySelectorAll("td");
-          if (cells.length === 0) continue; // skip header rows
-          if (cells[0].textContent.trim() !== id) continue;
-
-          const prevIdCell = cells[prevIdColIndex];
-          if (!prevIdCell) {
-            reject(new Error(`Κελί στήλης ${prevIdColIndex} δεν βρέθηκε για ${id}`));
-            return;
-          }
-
-          const link = prevIdCell.querySelector("a");
-          if (!link) {
-            reject(new Error(`Δεν βρέθηκε παλαιό ΑΔΤ για ${id} (κελί χωρίς σύνδεσμο)`));
-            return;
-          }
-
-          const oldId = link.textContent.trim();
-          link.click();
-          resolve({ success: true, oldId });
-          return;
-        }
-
-        if (attempts >= maxAttempts) {
-          reject(new Error(`Σειρά για ${id} δεν βρέθηκε στον πίνακα Άλλα Δελτία`));
-        } else {
-          attempts++;
-          setTimeout(check, pollInterval);
-        }
-      };
-
-      check();
-    });
-  }, [searchedId]);
-
-  if (!result.result || !result.result.success) {
-    throw new Error(result.result?.error || "Failed to find old ID");
-  }
-
-  await new Promise((r) => setTimeout(r, 2800));
-  return result.result.oldId;
+  return result.result?.date ?? "";
 }
 
 // Step 7: Click "Καταχώριση Μεταβολής" on old ID's page
@@ -493,12 +458,15 @@ async function clickStoreButton() {
 // Main workflow
 document.getElementById("start").addEventListener("click", async () => {
   try {
+    if (queuedIds.length === 0) return;
     chrome.storage.local.remove("partialResults");
     await getCurrentTab();
+
+    const runIds = [...queuedIds];
     const results = [];
 
-    for (const [index, id] of idNumbers.entries()) {
-      statusEl.innerHTML = `<span class="text-yellow-600">Processing ${index + 1}/${idNumbers.length}: ${id.number}</span>`;
+    for (const [index, id] of runIds.entries()) {
+      statusEl.innerHTML = `<span class="text-yellow-600">Processing ${index + 1}/${runIds.length}: ${id.number}</span>`;
 
       try {
         // Steps 1–2: search and extract person data from new ID's detail page
@@ -513,16 +481,10 @@ document.getElementById("start").addEventListener("click", async () => {
         // Step 4: extract application date
         const appDate = await extractApplicationDate();
 
-        // Step 5: search again to return to ID detail view
-        await searchById(id);
+        // Step 5: search for the old ID directly (already extracted from details page)
+        await searchById({ number: personData.oldId });
 
-        // Step 6: open "Άλλα Δελτία" tab
-        await clickAltaDeltiTab();
-
-        // Step 7: find old ID in table and navigate to it
-        const oldId = await findAndClickOldId(id.number);
-
-        // Steps 8–13: register change on old ID and destroy it
+        // Steps 6–12: register change on old ID and destroy it
         await clickChangeLink();
         await selectCancelRadio();
         await selectIdentityFlag90();
@@ -553,12 +515,15 @@ document.getElementById("start").addEventListener("click", async () => {
         console.error(`Failed: ${id.number} →`, err.message);
       }
 
-      if (index < idNumbers.length - 1) {
+      if (index < runIds.length - 1) {
         await new Promise((r) => setTimeout(r, 1000));
       }
     }
 
     chrome.storage.local.remove("partialResults");
+    queuedIds = [];
+    saveQueue();
+    updateQueueDisplay();
     downloadCSV(results);
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
@@ -577,29 +542,44 @@ function downloadCSV(results) {
   const successful = results.filter((r) => r.success);
   const failed = results.filter((r) => !r.success);
 
-  const rows = [
-    ["ΑΔΤ", "Επώνυμο", "Όνομα", "Ημ/νία Αίτησης"].join(","),
-    ...successful.map((r) =>
-      [r.id, r.surname, r.firstName, r.appDate].join(","),
-    ),
-  ];
+  const esc = (v) => `<td>${String(v ?? "").replace(/</g, "&lt;")}</td>`;
 
+  const successRows = successful
+    .map((r) => `<tr>${esc(r.id)}${esc(r.surname)}${esc(r.firstName)}${esc(r.appDate)}</tr>`)
+    .join("");
+
+  let failedSection = "";
   if (failed.length > 0) {
-    rows.push("");
-    rows.push("ΑΠΟΤΥΧΙΕΣ");
-    rows.push("ΑΔΤ,Σφάλμα");
-    failed.forEach((r) =>
-      rows.push(`${r.id},"${r.error.replace(/"/g, '""')}"`)
-    );
+    const failedRows = failed
+      .map((r) => `<tr>${esc(r.id)}${esc(r.error)}</tr>`)
+      .join("");
+    failedSection = `
+      <tr><td></td></tr>
+      <tr><td colspan="4"><b>ΑΠΟΤΥΧΙΕΣ</b></td></tr>
+      <tr><th>ΑΔΤ</th><th>Σφάλμα</th></tr>
+      ${failedRows}`;
   }
 
-  const csv = rows.join("\n");
-  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const html = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office"
+          xmlns:x="urn:schemas-microsoft-com:office:excel"
+          xmlns="http://www.w3.org/TR/REC-html40">
+    <head><meta charset="UTF-8"></head>
+    <body>
+      <table>
+        <tr><th>ΑΔΤ</th><th>Επώνυμο</th><th>Όνομα</th><th>Ημ/νία Αίτησης</th></tr>
+        ${successRows}
+        ${failedSection}
+      </table>
+    </body>
+    </html>`;
+
+  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
 
   const a = document.createElement("a");
   a.href = url;
-  a.download = `ΣΤΟΙΧΕΙΑ.csv`;
+  a.download = "ΣΤΟΙΧΕΙΑ.xls";
   a.click();
   URL.revokeObjectURL(url);
 }
