@@ -5,13 +5,13 @@
   "description": "Adds a browser action icon to the toolbar. Add file and start the automation.",
   "homepage_url": "https://github.com/NikEmman/cancellor",
   "icons": {
-    "48": "icons/cancel.png"
+    "48": "icons/cancel-48.png"
   },
   "action": {
     "default_icon": {
-      "32": "icons/cancel.png"
+      "32": "icons/cancel-32.png"
     },
-    "default_title": "cancellor",
+    "default_title": "Cancellor",
     "default_popup": "popup/popup.html"
   },
   "permissions": [
