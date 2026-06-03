@@ -201,8 +201,78 @@
         background-color: #9ca3af;
         cursor: not-allowed;
       }
+
+      /* Α130 section */
+      .a130-toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 14px;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .a130-toggle input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        accent-color: #4f46e5;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+
+      .a130-toggle span {
+        font-size: 14px;
+        font-weight: 600;
+        color: #c4b5fd;
+      }
+
+      .a130-fields {
+        display: none;
+        background-color: #111827;
+        border: 1px solid #4f46e5;
+        border-radius: 8px;
+        padding: 14px;
+        margin-top: 8px;
+        gap: 12px;
+        flex-direction: column;
+      }
+
+      .a130-fields.visible {
+        display: flex;
+      }
+
+      .a130-fields label {
+        margin-bottom: 4px;
+        color: #a5b4fc;
+        font-size: 13px;
+      }
+
+      .a130-fields input[type="text"] {
+        width: 100%;
+        background-color: #1f2937;
+        border: 1px solid #374151;
+        border-radius: 6px;
+        padding: 8px 10px;
+        color: #f9fafb;
+        font-size: 14px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
+
+      .a130-fields input[type="text"]:focus {
+        outline: none;
+        border-color: #6366f1;
+        box-shadow: 0 0 0 2px #6366f140;
+      }
+
+      .a130-warn {
+        font-size: 12px;
+        color: #fbbf24;
+        margin-top: 4px;
+        display: none;
+      }
     </style>
 
+    <script src="jszip.min.js"></script>
     <script src="popup.js" defer></script>
   </head>
 
@@ -241,6 +311,27 @@
       >
         Προσθήκη στην ουρά
       </button>
+
+      <label class="a130-toggle">
+        <input type="checkbox" id="a130-check" />
+        <span>Θέλω Α130</span>
+      </label>
+
+      <div class="a130-fields" id="a130-fields">
+        <div>
+          <label for="a130-amy">Α.Μ.Υ.</label>
+          <input type="text" id="a130-amy" maxlength="10" placeholder="π.χ. 1234" />
+          <div class="a130-warn" id="a130-amy-warn">Είσαι σίγουρος ότι είναι σωστό;</div>
+        </div>
+        <div>
+          <label for="a130-bathmos">Βαθμός</label>
+          <input type="text" id="a130-bathmos" placeholder="" />
+        </div>
+        <div>
+          <label for="a130-depts">Τμήματα (ένα ανά γραμμή)</label>
+          <textarea id="a130-depts" rows="4" class="font-mono text-sm"></textarea>
+        </div>
+      </div>
 
       <button
         id="start"
