@@ -313,23 +313,33 @@
       </button>
 
       <label class="a130-toggle">
-        <input type="checkbox" id="a130-check" />
-        <span>Θέλω Α130</span>
+        <input type="checkbox" id="other-dept-check" checked />
+        <span>Θα καταχωρήσω και Δελτία όπου τα παλιά δεν είναι της Υπηρεσίας μου</span>
       </label>
 
-      <div class="a130-fields" id="a130-fields">
-        <div>
-          <label for="a130-amy">Α.Μ.Υ.</label>
-          <input type="text" id="a130-amy" maxlength="10" placeholder="π.χ. 1234" />
-          <div class="a130-warn" id="a130-amy-warn">Είσαι σίγουρος ότι είναι σωστό;</div>
-        </div>
-        <div>
-          <label for="a130-bathmos">Βαθμός</label>
-          <input type="text" id="a130-bathmos" placeholder="" />
-        </div>
+      <div class="a130-fields visible" id="other-dept-fields">
         <div>
           <label for="a130-depts">Τμήματα (ένα ανά γραμμή)</label>
-          <textarea id="a130-depts" rows="4" class="font-mono text-sm"></textarea>
+          <textarea id="a130-depts" rows="4" class="font-mono text-sm">Τ.Δ.Ε.Ε. ΚΟΜΟΤΗΝΗΣ
+Τ.Α. ΚΟΜΟΤΗΝΗΣ
+Α.Τ. ΠΕΡΙΦ. ΚΟΜΟΤΗΝΗΣ</textarea>
+        </div>
+
+        <label class="a130-toggle" style="margin-top: 4px;">
+          <input type="checkbox" id="a130-check" checked />
+          <span>Θέλω Α130</span>
+        </label>
+
+        <div class="a130-fields visible" id="a130-fields">
+          <div>
+            <label for="a130-amy">Α.Μ.Υ.</label>
+            <input type="text" id="a130-amy" maxlength="10" value="4485" />
+            <div class="a130-warn" id="a130-amy-warn">Είσαι σίγουρος ότι είναι σωστό;</div>
+          </div>
+          <div>
+            <label for="a130-bathmos">Βαθμός</label>
+            <input type="text" id="a130-bathmos" value="Αρχ/κας" />
+          </div>
         </div>
       </div>
 

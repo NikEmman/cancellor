@@ -10,6 +10,8 @@ const queueCountEl = document.getElementById("queue-count");
 const queueListEl = document.getElementById("queue-list");
 const clearQueueBtn = document.getElementById("clear-queue-btn");
 
+const otherDeptCheck = document.getElementById("other-dept-check");
+const otherDeptFields = document.getElementById("other-dept-fields");
 const a130Check = document.getElementById("a130-check");
 const a130Fields = document.getElementById("a130-fields");
 const a130AmyInput = document.getElementById("a130-amy");
@@ -18,27 +20,41 @@ const a130BathmosInput = document.getElementById("a130-bathmos");
 const a130DeptsInput = document.getElementById("a130-depts");
 
 const parseDepts = (raw) =>
-  raw
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
+  raw.split("\n").map((l) => l.trim()).filter(Boolean);
 
-let a130Depts = parseDepts(localStorage.getItem("a130-depts") ?? "");
+let a130Depts = parseDepts(localStorage.getItem("a130-depts") ?? a130DeptsInput.value);
 
-// Restore persisted Α130 state
-(function restoreA130() {
-  const checked = localStorage.getItem("a130-check") === "true";
-  a130Check.checked = checked;
-  a130Fields.classList.toggle("visible", checked);
+// Restore persisted state
+(function restoreState() {
+  const otherDeptStored = localStorage.getItem("other-dept-check");
+  if (otherDeptStored !== null) {
+    otherDeptCheck.checked = otherDeptStored === "true";
+    otherDeptFields.classList.toggle("visible", otherDeptCheck.checked);
+  }
 
-  const amy = localStorage.getItem("a130-amy") ?? "";
-  a130AmyInput.value = amy;
-  if (amy) a130AmyWarn.style.display = /^\d{4}$/.test(amy) ? "none" : "block";
+  const a130Stored = localStorage.getItem("a130-check");
+  if (a130Stored !== null) {
+    a130Check.checked = a130Stored === "true";
+    a130Fields.classList.toggle("visible", a130Check.checked);
+  }
 
-  a130BathmosInput.value = localStorage.getItem("a130-bathmos") ?? "";
+  const amyStored = localStorage.getItem("a130-amy");
+  if (amyStored !== null) {
+    a130AmyInput.value = amyStored;
+    if (amyStored) a130AmyWarn.style.display = /^\d{4}$/.test(amyStored) ? "none" : "block";
+  }
 
-  a130DeptsInput.value = localStorage.getItem("a130-depts") ?? "";
+  const bathmosStored = localStorage.getItem("a130-bathmos");
+  if (bathmosStored !== null) a130BathmosInput.value = bathmosStored;
+
+  const deptsStored = localStorage.getItem("a130-depts");
+  if (deptsStored !== null) a130DeptsInput.value = deptsStored;
 })();
+
+otherDeptCheck.addEventListener("change", () => {
+  otherDeptFields.classList.toggle("visible", otherDeptCheck.checked);
+  localStorage.setItem("other-dept-check", otherDeptCheck.checked);
+});
 
 a130Check.addEventListener("change", () => {
   a130Fields.classList.toggle("visible", a130Check.checked);
@@ -634,7 +650,7 @@ async function clickStoreButton() {
 }
 
 function isIssuingAuthUsersDept(issuingAuth) {
-  // Strip leading numeric code, e.g. "5900 - Τ.Α. ΚΟΜΟΤΗΝΗΣ" → "Τ.Α. ΚΟΜΟΤΗΝΗΣ"
+  if (!otherDeptCheck.checked) return true;
   const deptName = issuingAuth.replace(/^\d+\s*-\s*/, "").trim();
   const normalize = (s) => s.replace(/\s+/g, " ").trim().toUpperCase();
   const normalized = normalize(deptName);
@@ -748,8 +764,10 @@ document.getElementById("start").addEventListener("click", async () => {
           await clickDestroyLink();
           await clickStoreButton();
         } else {
-          // Other department: generate Α130 instead
-          await generateA130(oldIdData, personData, operatorData, appDate);
+          // Other department: generate Α130 if requested
+          if (a130Check.checked) {
+            await generateA130(oldIdData, personData, operatorData, appDate);
+          }
         }
 
         const completedResult = {
