@@ -759,6 +759,7 @@ document.getElementById("start").addEventListener("click", async () => {
         const cancelSucceeded = await verifyOldTypeReplacementSuccess();
         await clickReturnButton();
 
+        let a130Generated = false;
         if (isIssuingAuthUsersDept(oldIdData.issuingAuth)) {
           // Happy path: our department issued the old ID — destroy it
           await clickDestroyLink();
@@ -767,6 +768,7 @@ document.getElementById("start").addEventListener("click", async () => {
           // Other department: generate Α130 if requested
           if (a130Check.checked) {
             await generateA130(oldIdData, personData, operatorData, appDate);
+            a130Generated = true;
           }
         }
 
@@ -777,6 +779,7 @@ document.getElementById("start").addEventListener("click", async () => {
           firstName: personData.firstName,
           appDate: appDate,
           cancelFailedOldId: cancelSucceeded ? null : personData.oldId,
+          a130Generated,
         };
         results.push(completedResult);
 
@@ -802,7 +805,7 @@ document.getElementById("start").addEventListener("click", async () => {
     queuedIds = [];
     saveQueue();
     updateQueueDisplay();
-    downloadCSV(results);
+    downloadCSV(results, a130Check.checked);
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
     const summary =
@@ -816,7 +819,7 @@ document.getElementById("start").addEventListener("click", async () => {
   }
 });
 
-function downloadCSV(results) {
+function downloadCSV(results, showA130 = false) {
   const successful = results.filter((r) => r.success);
   const failed = results.filter((r) => !r.success);
 
@@ -825,7 +828,7 @@ function downloadCSV(results) {
   const successRows = successful
     .map(
       (r) =>
-        `<tr>${esc(r.id)}${esc(r.surname)}${esc(r.firstName)}${esc(r.appDate)}${esc(r.cancelFailedOldId ?? "")}</tr>`,
+        `<tr>${esc(r.id)}${esc(r.surname)}${esc(r.firstName)}${esc(r.appDate)}${esc(r.cancelFailedOldId ?? "")}${showA130 ? esc(r.a130Generated ? "Ναι" : "") : ""}</tr>`,
     )
     .join("");
 
@@ -841,6 +844,8 @@ function downloadCSV(results) {
       ${failedRows}`;
   }
 
+  const a130Header = showA130 ? "<th>A130</th>" : "";
+
   const html = `
     <html xmlns:o="urn:schemas-microsoft-com:office:office"
           xmlns:x="urn:schemas-microsoft-com:office:excel"
@@ -848,7 +853,7 @@ function downloadCSV(results) {
     <head><meta charset="UTF-8"></head>
     <body>
       <table>
-        <tr><th>ΑΔΤ</th><th>Επώνυμο</th><th>Όνομα</th><th>Ημ/νία Αίτησης</th><th>Αποτυχία Ακύρωσης</th></tr>
+        <tr><th>ΑΔΤ</th><th>Επώνυμο</th><th>Όνομα</th><th>Ημ/νία Αίτησης</th><th>Αποτυχία Ακύρωσης</th>${a130Header}</tr>
         ${successRows}
         ${failedSection}
       </table>
