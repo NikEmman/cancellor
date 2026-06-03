@@ -152,7 +152,8 @@
         max-height: 72px;
         overflow-y: auto;
         margin-top: 8px;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         font-size: 12px;
         color: #6b7280;
         line-height: 1.6;
@@ -255,13 +256,17 @@
         padding: 8px 10px;
         color: #f9fafb;
         font-size: 14px;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       }
 
       .a130-fields input[type="text"]:focus {
         outline: none;
         border-color: #6366f1;
         box-shadow: 0 0 0 2px #6366f140;
+      }
+      #a130-depts {
+        width: 100%;
       }
 
       .a130-warn {
@@ -278,11 +283,14 @@
 
   <body class="bg-gray-800 p-10 flex flex-col gap-2">
     <div class="p-4">
-
       <!-- Persistent queue display -->
       <div class="queue-box">
         <div class="queue-header">
-          <span id="queue-count" class="text-sm font-medium" style="color:#9ca3af;">
+          <span
+            id="queue-count"
+            class="text-sm font-medium"
+            style="color: #9ca3af"
+          >
             Ουρά: κενή
           </span>
           <button id="clear-queue-btn" disabled>Εκκαθάριση</button>
@@ -304,28 +312,29 @@
 
       <div id="parse-status" class="mt-3 text-sm font-medium"></div>
 
-      <button
-        id="add-to-queue"
-        disabled
-        class="btn-add"
-      >
+      <button id="add-to-queue" disabled class="btn-add">
         Προσθήκη στην ουρά
       </button>
 
       <label class="a130-toggle">
         <input type="checkbox" id="other-dept-check" checked />
-        <span>Θα καταχωρήσω και Δελτία όπου τα παλιά δεν είναι της Υπηρεσίας μου</span>
+        <span
+          >Θα καταχωρήσω και Δελτία όπου τα παλιά δεν είναι της Υπηρεσίας
+          μου</span
+        >
       </label>
 
       <div class="a130-fields visible" id="other-dept-fields">
         <div>
           <label for="a130-depts">Τμήματα (ένα ανά γραμμή)</label>
-          <textarea id="a130-depts" rows="4" class="font-mono text-sm">Τ.Δ.Ε.Ε. ΚΟΜΟΤΗΝΗΣ
+          <textarea id="a130-depts" rows="4" class="font-mono text-sm">
+Τ.Δ.Ε.Ε. ΚΟΜΟΤΗΝΗΣ
 Τ.Α. ΚΟΜΟΤΗΝΗΣ
-Α.Τ. ΠΕΡΙΦ. ΚΟΜΟΤΗΝΗΣ</textarea>
+Α.Τ. ΠΕΡΙΦ. ΚΟΜΟΤΗΝΗΣ</textarea
+          >
         </div>
 
-        <label class="a130-toggle" style="margin-top: 4px;">
+        <label class="a130-toggle" style="margin-top: 4px">
           <input type="checkbox" id="a130-check" checked />
           <span>Θέλω Α130</span>
         </label>
@@ -334,7 +343,9 @@
           <div>
             <label for="a130-amy">Α.Μ.Υ.</label>
             <input type="text" id="a130-amy" maxlength="10" value="4485" />
-            <div class="a130-warn" id="a130-amy-warn">Είσαι σίγουρος ότι είναι σωστό;</div>
+            <div class="a130-warn" id="a130-amy-warn">
+              Είσαι σίγουρος ότι είναι σωστό;
+            </div>
           </div>
           <div>
             <label for="a130-bathmos">Βαθμός</label>
