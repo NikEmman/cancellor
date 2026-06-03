@@ -58,7 +58,8 @@ addToQueueBtn.addEventListener("click", () => {
   idNumbers = [];
 
   let msg = `<span class="text-green-600">Προστέθηκαν ${newIds.length} ταυτότητες στην ουρά.</span>`;
-  if (dupes > 0) msg += ` <span class="text-yellow-600">(${dupes} διπλότυπα παραλείφθηκαν)</span>`;
+  if (dupes > 0)
+    msg += ` <span class="text-yellow-600">(${dupes} διπλότυπα παραλείφθηκαν)</span>`;
   statusEl.innerHTML = msg;
   addToQueueBtn.disabled = true;
 });
@@ -268,12 +269,15 @@ async function extractPersonData() {
         const adtAntLabel = Array.from(document.querySelectorAll("label")).find(
           (l) => l.textContent.trim() === "Α.Δ.Τ. Αντικατάστασης",
         );
-        const oldId = adtAntLabel?.closest("tr")?.cells?.[1]?.textContent.trim() ?? "";
+        const oldId =
+          adtAntLabel?.closest("tr")?.cells?.[1]?.textContent.trim() ?? "";
 
         if (!fields.surname && !fields.firstName) {
           reject(new Error("Name fields empty – possible parsing issue"));
         } else if (!oldId) {
-          reject(new Error("Α.Δ.Τ. Αντικατάστασης κενό – δεν βρέθηκε παλαιό δελτίο"));
+          reject(
+            new Error("Α.Δ.Τ. Αντικατάστασης κενό – δεν βρέθηκε παλαιό δελτίο"),
+          );
         } else {
           resolve({
             success: true,
@@ -306,8 +310,9 @@ async function clickApplicationDetailsLink() {
     const target = Array.from(links).find(
       (l) => l.textContent.trim() === "Προβολή Στοιχείων Αίτησης",
     );
-    if (!target)
+    if (!target) {
       throw new Error("Link 'Προβολή Στοιχείων Αίτησης' not found");
+    }
     target.click();
   });
 
@@ -419,6 +424,23 @@ async function submitOldTypeReplacement() {
   await new Promise((r) => setTimeout(r, 3500));
 }
 
+// Step 10b: Verify old-type replacement succeeded by checking status text
+async function verifyOldTypeReplacementSuccess() {
+  const [result] = await execute(function () {
+    const spans = document.querySelectorAll("span");
+    for (const span of spans) {
+      if (
+        span.textContent.trim() ===
+        "ΜΗ ΕΝΕΡΓΟ ΔΕΛΤΙΟ. ΑΝΤΙΚΑΤΑΣΤΑΣΗ ΠΑΛΑΙΟΥ ΤΥΠΟΥ"
+      ) {
+        return true;
+      }
+    }
+    return false;
+  });
+  return result.result === true;
+}
+
 // Step 11: Return to ID detail view
 async function clickReturnButton() {
   await execute(function () {
@@ -489,6 +511,7 @@ document.getElementById("start").addEventListener("click", async () => {
         await selectCancelRadio();
         await selectIdentityFlag90();
         await submitOldTypeReplacement();
+        const cancelSucceeded = await verifyOldTypeReplacementSuccess();
         await clickReturnButton();
         await clickDestroyLink();
         await clickStoreButton();
@@ -499,6 +522,7 @@ document.getElementById("start").addEventListener("click", async () => {
           surname: personData.surname,
           firstName: personData.firstName,
           appDate: appDate,
+          cancelFailedOldId: cancelSucceeded ? null : personData.oldId,
         };
         results.push(completedResult);
 
@@ -545,7 +569,10 @@ function downloadCSV(results) {
   const esc = (v) => `<td>${String(v ?? "").replace(/</g, "&lt;")}</td>`;
 
   const successRows = successful
-    .map((r) => `<tr>${esc(r.id)}${esc(r.surname)}${esc(r.firstName)}${esc(r.appDate)}</tr>`)
+    .map(
+      (r) =>
+        `<tr>${esc(r.id)}${esc(r.surname)}${esc(r.firstName)}${esc(r.appDate)}${esc(r.cancelFailedOldId ?? "")}</tr>`,
+    )
     .join("");
 
   let failedSection = "";
@@ -567,14 +594,16 @@ function downloadCSV(results) {
     <head><meta charset="UTF-8"></head>
     <body>
       <table>
-        <tr><th>ΑΔΤ</th><th>Επώνυμο</th><th>Όνομα</th><th>Ημ/νία Αίτησης</th></tr>
+        <tr><th>ΑΔΤ</th><th>Επώνυμο</th><th>Όνομα</th><th>Ημ/νία Αίτησης</th><th>Αποτυχία Ακύρωσης</th></tr>
         ${successRows}
         ${failedSection}
       </table>
     </body>
     </html>`;
 
-  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8;" });
+  const blob = new Blob([html], {
+    type: "application/vnd.ms-excel;charset=utf-8;",
+  });
   const url = URL.createObjectURL(blob);
 
   const a = document.createElement("a");
