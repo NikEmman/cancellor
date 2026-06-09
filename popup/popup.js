@@ -143,10 +143,15 @@ chrome.storage.local.get("partialResults").then((result) => {
     statusEl.innerHTML = `<span class="text-yellow-600">Βρέθηκαν ${result.partialResults.length} αποθηκευμένα αποτελέσματα. Γίνεται λήψη...</span>`;
 
     const performDownload = async () => {
-      await downloadCSV(result.partialResults);
-      chrome.storage.local.remove("partialResults");
-      statusEl.textContent = "";
-      updateQueueDisplay();
+      try {
+        await downloadCSV(result.partialResults);
+        await chrome.storage.local.remove("partialResults");
+        statusEl.textContent = "";
+        updateQueueDisplay();
+      } catch (err) {
+        statusEl.innerHTML = `<span class="text-red-600">Σφάλμα κατά την λήψη: ${err.message}</span>`;
+        startBtn.disabled = false;
+      }
     };
 
     setTimeout(performDownload, 2000);
@@ -669,9 +674,10 @@ function isIssuingAuthUsersDept(issuingAuth) {
 }
 
 function blobToDataUrl(blob) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(blob);
   });
 }
@@ -736,10 +742,11 @@ async function generateA130(
     type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   });
   const dataUrl = await blobToDataUrl(blob);
-  await chrome.downloads.download({
+  const downloadId = await chrome.downloads.download({
     url: dataUrl,
     filename: `A130-${oldIdData.surname}-${oldIdData.issuingAuth.replace(/^\d+\s*-\s*/, "").trim()}.docx`,
   });
+  if (!downloadId) throw new Error("Αποτυχία λήψης A130");
 }
 
 // Main workflow
@@ -787,7 +794,7 @@ document.getElementById("start").addEventListener("click", async () => {
           const saved = await chrome.storage.local.get("partialResults");
           const partialResults = saved.partialResults || [];
           partialResults.push(earlyResult);
-          chrome.storage.local.set({ partialResults: partialResults });
+          await chrome.storage.local.set({ partialResults: partialResults });
           queuedIds = queuedIds.filter((q) => q.number !== id.number);
           saveQueue();
           continue;
@@ -841,7 +848,7 @@ document.getElementById("start").addEventListener("click", async () => {
         const saved = await chrome.storage.local.get("partialResults");
         const partialResults = saved.partialResults || [];
         partialResults.push(completedResult);
-        chrome.storage.local.set({ partialResults: partialResults });
+        await chrome.storage.local.set({ partialResults: partialResults });
       } catch (err) {
         results.push({
           id: id.number,
@@ -922,5 +929,6 @@ async function downloadCSV(results, showA130 = false) {
     type: "application/vnd.ms-excel;charset=utf-8;",
   });
   const dataUrl = await blobToDataUrl(blob);
-  await chrome.downloads.download({ url: dataUrl, filename: "ΣΤΟΙΧΕΙΑ.xls" });
+  const downloadId = await chrome.downloads.download({ url: dataUrl, filename: "ΣΤΟΙΧΕΙΑ.xls" });
+  if (!downloadId) throw new Error("Αποτυχία λήψης αρχείου");
 }
