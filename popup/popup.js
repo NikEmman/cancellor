@@ -142,8 +142,8 @@ chrome.storage.local.get("partialResults").then((result) => {
     startBtn.disabled = true;
     statusEl.innerHTML = `<span class="text-yellow-600">Βρέθηκαν ${result.partialResults.length} αποθηκευμένα αποτελέσματα. Γίνεται λήψη...</span>`;
 
-    const performDownload = () => {
-      downloadCSV(result.partialResults);
+    const performDownload = async () => {
+      await downloadCSV(result.partialResults);
       chrome.storage.local.remove("partialResults");
       statusEl.textContent = "";
       updateQueueDisplay();
@@ -668,6 +668,14 @@ function isIssuingAuthUsersDept(issuingAuth) {
   return a130Depts.some((d) => normalize(d) === normalized);
 }
 
+function blobToDataUrl(blob) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.readAsDataURL(blob);
+  });
+}
+
 function base64ToArrayBuffer(base64) {
   const binary = atob(base64);
   const buffer = new Uint8Array(binary.length);
@@ -727,12 +735,11 @@ async function generateA130(
   const blob = new Blob([docx], {
     type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `A130-${oldIdData.surname}-${oldIdData.issuingAuth.replace(/^\d+\s*-\s*/, "").trim()}.docx`;
-  a.click();
-  URL.revokeObjectURL(url);
+  const dataUrl = await blobToDataUrl(blob);
+  await chrome.downloads.download({
+    url: dataUrl,
+    filename: `A130-${oldIdData.surname}-${oldIdData.issuingAuth.replace(/^\d+\s*-\s*/, "").trim()}.docx`,
+  });
 }
 
 // Main workflow
@@ -781,6 +788,8 @@ document.getElementById("start").addEventListener("click", async () => {
           const partialResults = saved.partialResults || [];
           partialResults.push(earlyResult);
           chrome.storage.local.set({ partialResults: partialResults });
+          queuedIds = queuedIds.filter((q) => q.number !== id.number);
+          saveQueue();
           continue;
         }
 
@@ -854,7 +863,7 @@ document.getElementById("start").addEventListener("click", async () => {
     queuedIds = [];
     saveQueue();
     updateQueueDisplay();
-    downloadCSV(results, a130Check.checked);
+    await downloadCSV(results, a130Check.checked);
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
     const summary =
@@ -868,7 +877,7 @@ document.getElementById("start").addEventListener("click", async () => {
   }
 });
 
-function downloadCSV(results, showA130 = false) {
+async function downloadCSV(results, showA130 = false) {
   const successful = results.filter((r) => r.success);
   const failed = results.filter((r) => !r.success);
 
@@ -912,11 +921,6 @@ function downloadCSV(results, showA130 = false) {
   const blob = new Blob([html], {
     type: "application/vnd.ms-excel;charset=utf-8;",
   });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "ΣΤΟΙΧΕΙΑ.xls";
-  a.click();
-  URL.revokeObjectURL(url);
+  const dataUrl = await blobToDataUrl(blob);
+  await chrome.downloads.download({ url: dataUrl, filename: "ΣΤΟΙΧΕΙΑ.xls" });
 }
