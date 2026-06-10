@@ -137,17 +137,26 @@ addToQueueBtn.addEventListener("click", () => {
   addToQueueBtn.disabled = true;
 });
 
-chrome.storage.local.get("partialResults").then((result) => {
+chrome.storage.local.get(["partialResults", "queuedIds"]).then((result) => {
   if (result.partialResults && result.partialResults.length > 0) {
     startBtn.disabled = true;
-    statusEl.innerHTML = `<span class="text-yellow-600">Βρέθηκαν ${result.partialResults.length} αποθηκευμένα αποτελέσματα. Γίνεται λήψη...</span>`;
+    const completedCount = result.partialResults.length;
+    const remainingCount = (result.queuedIds || []).length;
+    const queueNote = remainingCount > 0
+      ? ` — ${remainingCount} ταυτότητες παραμένουν στην ουρά.`
+      : "";
+    statusEl.innerHTML = `<span class="text-yellow-600">Βρέθηκαν ${completedCount} ολοκληρωμένα αποτελέσματα από διακοπείσα εργασία. Γίνεται λήψη...${queueNote}</span>`;
 
     const performDownload = async () => {
       try {
         await downloadCSV(result.partialResults);
         await chrome.storage.local.remove("partialResults");
-        statusEl.textContent = "";
+        statusEl.style.opacity = "1";
+        statusEl.innerHTML = `<span class="text-green-600">Η λήψη των αποτελεσμάτων ολοκληρώθηκε.</span>`;
         updateQueueDisplay();
+        setTimeout(() => { statusEl.style.opacity = "0"; }, 2500);
+        setTimeout(() => { statusEl.textContent = ""; statusEl.style.opacity = "1"; }, 3200);
+        startBtn.disabled = false;
       } catch (err) {
         statusEl.innerHTML = `<span class="text-red-600">Σφάλμα κατά την λήψη: ${err.message}</span>`;
         startBtn.disabled = false;
@@ -171,7 +180,7 @@ const autoParse = () => {
     statusEl.innerHTML = `<span class="text-green-600">${idNumbers.length} ταυτότητες έτοιμες για προσθήκη.</span>`;
     addToQueueBtn.disabled = false;
   } catch (err) {
-    statusEl.innerHTML = `<span class="text-red-600">Error: ${err.message}</span>`;
+    statusEl.innerHTML = `<span class="text-red-600">Σφάλμα: ${err.message}</span>`;
     addToQueueBtn.disabled = true;
     idNumbers = [];
   }
@@ -277,7 +286,7 @@ async function extractOperatorData() {
   });
 
   if (!result.result?.success) {
-    throw new Error(result.result?.error || "Failed to extract operator data");
+    throw new Error(result.result?.error || "Αποτυχία εξαγωγής στοιχείων χειριστή");
   }
   return result.result;
 }
@@ -293,7 +302,7 @@ async function searchById(idObj) {
       );
 
       if (!input || !searchBtn) {
-        throw new Error("Search input or button not found");
+        throw new Error("Δεν βρέθηκε πεδίο αναζήτησης ή κουμπί");
       }
 
       input.value = id;
@@ -317,7 +326,7 @@ async function extractPersonData() {
         const container = document.querySelector(".xdq");
         if (!container) {
           if (attempts >= maxAttempts)
-            reject(new Error("No .xdq container found"));
+            reject(new Error("Η σελίδα στοιχείων ΑΔΤ δεν φορτώθηκε"));
           else {
             attempts++;
             setTimeout(check, pollInterval);
@@ -340,7 +349,7 @@ async function extractPersonData() {
 
         if (!hasRealText) {
           if (attempts >= maxAttempts) {
-            reject(new Error("Container found but no valid text loaded"));
+            reject(new Error("Τα στοιχεία της σελίδας δεν φορτώθηκαν"));
           } else {
             attempts++;
             setTimeout(check, pollInterval);
@@ -394,7 +403,7 @@ async function extractPersonData() {
         const replacementReason = getValue("Αιτία Αντικατάστασης").trim();
 
         if (!fields.surname && !fields.firstName) {
-          reject(new Error("Name fields empty – possible parsing issue"));
+          reject(new Error("Δεν βρέθηκαν στοιχεία ονόματος στη σελίδα"));
         } else {
           resolve({
             success: true,
@@ -415,7 +424,7 @@ async function extractPersonData() {
   });
 
   if (!result.result || !result.result.success) {
-    throw new Error(result.result?.error || "Failed to extract person data");
+    throw new Error(result.result?.error || "Αποτυχία ανάκτησης στοιχείων ατόμου");
   }
 
   return result.result;
@@ -429,7 +438,7 @@ async function clickApplicationDetailsLink() {
       (l) => l.textContent.trim() === "Προβολή Στοιχείων Αίτησης",
     );
     if (!target) {
-      throw new Error("Link 'Προβολή Στοιχείων Αίτησης' not found");
+      throw new Error("Δεν βρέθηκε ο σύνδεσμος 'Προβολή Στοιχείων Αίτησης'");
     }
     target.click();
   });
@@ -501,7 +510,7 @@ async function extractOldIdData() {
         );
         if (!anchor || !anchor.textContent.trim()) {
           if (attempts >= maxAttempts)
-            reject(new Error("Old ID detail page did not load"));
+            reject(new Error("Η σελίδα στοιχείων παλαιού ΑΔΤ δεν φορτώθηκε"));
           else {
             attempts++;
             setTimeout(check, pollInterval);
@@ -552,7 +561,7 @@ async function extractOldIdData() {
   });
 
   if (!result.result?.success) {
-    throw new Error(result.result?.error || "Failed to extract old ID data");
+    throw new Error(result.result?.error || "Αποτυχία ανάκτησης στοιχείων παλαιού ΑΔΤ");
   }
   return result.result;
 }
@@ -564,7 +573,7 @@ async function clickChangeLink() {
     const target = Array.from(links).find(
       (l) => l.textContent.trim() === "Καταχώριση Μεταβολής",
     );
-    if (!target) throw new Error("Link 'Καταχώριση Μεταβολής' not found");
+    if (!target) throw new Error("Δεν βρέθηκε ο σύνδεσμος 'Καταχώριση Μεταβολής'");
     target.click();
   });
 
@@ -575,7 +584,7 @@ async function clickChangeLink() {
 async function selectCancelRadio() {
   await execute(function () {
     const radio = document.getElementById("type:0");
-    if (!radio) throw new Error("Radio button Ακύρωση (type:0) not found");
+    if (!radio) throw new Error("Δεν βρέθηκε η επιλογή Ακύρωση");
     radio.click();
   });
 
@@ -586,7 +595,7 @@ async function selectCancelRadio() {
 async function selectIdentityFlag90() {
   await execute(function () {
     const select = document.getElementById("identityFlag");
-    if (!select) throw new Error("Select identityFlag not found");
+    if (!select) throw new Error("Δεν βρέθηκε η λίστα επιλογής κατηγορίας");
     select.value = "90";
     select.dispatchEvent(new Event("change", { bubbles: true }));
   });
@@ -598,12 +607,12 @@ async function selectIdentityFlag90() {
 async function submitOldTypeReplacement() {
   await execute(function () {
     const button = document.getElementById("updateButton");
-    if (!button) throw new Error("updateButton not found");
+    if (!button) throw new Error("Δεν βρέθηκε το κουμπί αποθήκευσης");
 
     const expectedText = "Αποθήκευση Μεταβολής ΑΝΤΙΚΑΤΑΣΤΑΣΗ ΠΑΛΑΙΟΥ ΤΥΠΟΥ";
     const actualText = button.textContent.trim().replace(/\s+/g, " ");
     if (actualText !== expectedText) {
-      throw new Error(`Button text mismatch: "${actualText}"`);
+      throw new Error("Δεν βρέθηκε το σωστό κείμενο στο κουμπί Αποθήκευσης");
     }
 
     button.click();
@@ -741,11 +750,12 @@ async function generateA130(
   const blob = new Blob([docx], {
     type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   });
-  const dataUrl = await blobToDataUrl(blob);
+  const blobUrl = URL.createObjectURL(blob);
   const downloadId = await chrome.downloads.download({
-    url: dataUrl,
+    url: blobUrl,
     filename: `A130-${oldIdData.surname}-${oldIdData.issuingAuth.replace(/^\d+\s*-\s*/, "").trim()}.docx`,
   });
+  URL.revokeObjectURL(blobUrl);
   if (!downloadId) throw new Error("Αποτυχία λήψης A130");
 }
 
@@ -761,7 +771,7 @@ document.getElementById("start").addEventListener("click", async () => {
     const results = [];
 
     for (const [index, id] of runIds.entries()) {
-      statusEl.innerHTML = `<span class="text-yellow-600">Processing ${index + 1}/${runIds.length}: ${id.number}</span>`;
+      statusEl.innerHTML = `<span class="text-yellow-600">Επεξεργασία ${index + 1}/${runIds.length}: ${id.number}</span>`;
 
       try {
         // Steps 1–2: search and extract person data from new ID's detail page
@@ -875,12 +885,12 @@ document.getElementById("start").addEventListener("click", async () => {
     const failed = results.filter((r) => !r.success);
     const summary =
       failed.length > 0
-        ? `Completed! ${successful.length}/${results.length} successful.\nFailed (${failed.length}): ${failed.map((f) => f.id).join(", ")}`
-        : `Completed! ${successful.length}/${results.length} successful.`;
+        ? `Ολοκληρώθηκε! ${successful.length}/${results.length} επιτυχή.\nΑποτυχίες (${failed.length}): ${failed.map((f) => f.id).join(", ")}`
+        : `Ολοκληρώθηκε! ${successful.length}/${results.length} επιτυχή.`;
     alert(summary);
   } catch (err) {
     console.error("Fatal error:", err);
-    alert("Error: " + err.message);
+    alert("Σφάλμα: " + err.message);
   }
 });
 
@@ -928,7 +938,8 @@ async function downloadCSV(results, showA130 = false) {
   const blob = new Blob([html], {
     type: "application/vnd.ms-excel;charset=utf-8;",
   });
-  const dataUrl = await blobToDataUrl(blob);
-  const downloadId = await chrome.downloads.download({ url: dataUrl, filename: "ΣΤΟΙΧΕΙΑ.xls" });
+  const blobUrl = URL.createObjectURL(blob);
+  const downloadId = await chrome.downloads.download({ url: blobUrl, filename: "ΣΤΟΙΧΕΙΑ.xls" });
+  URL.revokeObjectURL(blobUrl);
   if (!downloadId) throw new Error("Αποτυχία λήψης αρχείου");
 }
