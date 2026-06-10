@@ -859,6 +859,8 @@ document.getElementById("start").addEventListener("click", async () => {
         const partialResults = saved.partialResults || [];
         partialResults.push(completedResult);
         await chrome.storage.local.set({ partialResults: partialResults });
+        queuedIds = queuedIds.filter((q) => q.number !== id.number);
+        saveQueue();
       } catch (err) {
         results.push({
           id: id.number,
@@ -868,16 +870,12 @@ document.getElementById("start").addEventListener("click", async () => {
         console.error(`Failed: ${id.number} →`, err.message);
       }
 
-      queuedIds = queuedIds.filter((q) => q.number !== id.number);
-      saveQueue();
-
       if (index < runIds.length - 1) {
         await new Promise((r) => setTimeout(r, 1000));
       }
     }
 
     chrome.storage.local.remove("partialResults");
-    queuedIds = [];
     saveQueue();
     updateQueueDisplay();
     await downloadCSV(results, a130Check.checked);
