@@ -710,6 +710,26 @@ async function processDocx(arrayBuffer, replacements) {
   return zip.generateAsync({ type: "arraybuffer" });
 }
 
+async function safeDownload(blob, filename) {
+  const blobUrl = URL.createObjectURL(blob);
+  const downloadId = await chrome.downloads.download({ url: blobUrl, filename, saveAs: false });
+  return new Promise((resolve, reject) => {
+    const listener = (delta) => {
+      if (delta.id !== downloadId || !delta.state) return;
+      if (delta.state.current === "complete") {
+        chrome.downloads.onChanged.removeListener(listener);
+        URL.revokeObjectURL(blobUrl);
+        resolve(downloadId);
+      } else if (delta.state.current === "interrupted") {
+        chrome.downloads.onChanged.removeListener(listener);
+        URL.revokeObjectURL(blobUrl);
+        reject(new Error("Η λήψη διακόπηκε"));
+      }
+    };
+    chrome.downloads.onChanged.addListener(listener);
+  });
+}
+
 async function generateA130(
   oldIdData,
   personData,
@@ -750,13 +770,7 @@ async function generateA130(
   const blob = new Blob([docx], {
     type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   });
-  const blobUrl = URL.createObjectURL(blob);
-  const downloadId = await chrome.downloads.download({
-    url: blobUrl,
-    filename: `A130-${oldIdData.surname}-${oldIdData.issuingAuth.replace(/^\d+\s*-\s*/, "").trim()}.docx`,
-  });
-  URL.revokeObjectURL(blobUrl);
-  if (!downloadId) throw new Error("Αποτυχία λήψης A130");
+  await safeDownload(blob, `A130-${oldIdData.surname}-${oldIdData.issuingAuth.replace(/^\d+\s*-\s*/, "").trim()}.docx`);
 }
 
 // Main workflow
@@ -878,7 +892,7 @@ document.getElementById("start").addEventListener("click", async () => {
     chrome.storage.local.remove("partialResults");
     saveQueue();
     updateQueueDisplay();
-    await downloadCSV(results, a130Check.checked);
+    await downloadCSV(results);
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
     const summary =
@@ -892,7 +906,7 @@ document.getElementById("start").addEventListener("click", async () => {
   }
 });
 
-async function downloadCSV(results, showA130 = false) {
+async function downloadCSV(results) {
   const successful = results.filter((r) => r.success);
   const failed = results.filter((r) => !r.success);
 
@@ -901,7 +915,7 @@ async function downloadCSV(results, showA130 = false) {
   const successRows = successful
     .map(
       (r) =>
-        `<tr>${esc(r.id)}${esc(r.surname)}${esc(r.firstName)}${esc(r.appDate)}${esc(r.cancelFailedOldId ?? "")}${showA130 ? esc(r.a130Generated ? "Ναι" : "") : ""}</tr>`,
+        `<tr>${esc(r.id)}${esc(r.surname)}${esc(r.firstName)}${esc(r.appDate)}${esc(r.cancelFailedOldId ?? "")}${esc(r.a130Generated ? "Ναι" : "")}</tr>`,
     )
     .join("");
 
@@ -917,7 +931,7 @@ async function downloadCSV(results, showA130 = false) {
       ${failedRows}`;
   }
 
-  const a130Header = showA130 ? "<th>A130</th>" : "";
+  const a130Header = "<th>A130</th>";
 
   const html = `
     <html xmlns:o="urn:schemas-microsoft-com:office:office"
@@ -936,8 +950,5 @@ async function downloadCSV(results, showA130 = false) {
   const blob = new Blob([html], {
     type: "application/vnd.ms-excel;charset=utf-8;",
   });
-  const blobUrl = URL.createObjectURL(blob);
-  const downloadId = await chrome.downloads.download({ url: blobUrl, filename: "ΣΤΟΙΧΕΙΑ.xls" });
-  URL.revokeObjectURL(blobUrl);
-  if (!downloadId) throw new Error("Αποτυχία λήψης αρχείου");
+  await safeDownload(blob, "ΣΤΟΙΧΕΙΑ.xls");
 }
