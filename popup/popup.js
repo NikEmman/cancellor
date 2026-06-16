@@ -142,9 +142,10 @@ chrome.storage.local.get(["partialResults", "queuedIds"]).then((result) => {
     startBtn.disabled = true;
     const completedCount = result.partialResults.length;
     const remainingCount = (result.queuedIds || []).length;
-    const queueNote = remainingCount > 0
-      ? ` — ${remainingCount} ταυτότητες παραμένουν στην ουρά.`
-      : "";
+    const queueNote =
+      remainingCount > 0
+        ? ` — ${remainingCount} ταυτότητες παραμένουν στην ουρά.`
+        : "";
     statusEl.innerHTML = `<span class="text-yellow-600">Βρέθηκαν ${completedCount} ολοκληρωμένα αποτελέσματα από διακοπείσα εργασία. Γίνεται λήψη...${queueNote}</span>`;
 
     const performDownload = async () => {
@@ -154,8 +155,13 @@ chrome.storage.local.get(["partialResults", "queuedIds"]).then((result) => {
         statusEl.style.opacity = "1";
         statusEl.innerHTML = `<span class="text-green-600">Η λήψη των αποτελεσμάτων ολοκληρώθηκε.</span>`;
         updateQueueDisplay();
-        setTimeout(() => { statusEl.style.opacity = "0"; }, 2500);
-        setTimeout(() => { statusEl.textContent = ""; statusEl.style.opacity = "1"; }, 3200);
+        setTimeout(() => {
+          statusEl.style.opacity = "0";
+        }, 2500);
+        setTimeout(() => {
+          statusEl.textContent = "";
+          statusEl.style.opacity = "1";
+        }, 3200);
         startBtn.disabled = false;
       } catch (err) {
         statusEl.innerHTML = `<span class="text-red-600">Σφάλμα κατά την λήψη: ${err.message}</span>`;
@@ -286,7 +292,9 @@ async function extractOperatorData() {
   });
 
   if (!result.result?.success) {
-    throw new Error(result.result?.error || "Αποτυχία εξαγωγής στοιχείων χειριστή");
+    throw new Error(
+      result.result?.error || "Αποτυχία εξαγωγής στοιχείων χειριστή",
+    );
   }
   return result.result;
 }
@@ -424,7 +432,9 @@ async function extractPersonData() {
   });
 
   if (!result.result || !result.result.success) {
-    throw new Error(result.result?.error || "Αποτυχία ανάκτησης στοιχείων ατόμου");
+    throw new Error(
+      result.result?.error || "Αποτυχία ανάκτησης στοιχείων ατόμου",
+    );
   }
 
   return result.result;
@@ -561,7 +571,9 @@ async function extractOldIdData() {
   });
 
   if (!result.result?.success) {
-    throw new Error(result.result?.error || "Αποτυχία ανάκτησης στοιχείων παλαιού ΑΔΤ");
+    throw new Error(
+      result.result?.error || "Αποτυχία ανάκτησης στοιχείων παλαιού ΑΔΤ",
+    );
   }
   return result.result;
 }
@@ -573,7 +585,8 @@ async function clickChangeLink() {
     const target = Array.from(links).find(
       (l) => l.textContent.trim() === "Καταχώριση Μεταβολής",
     );
-    if (!target) throw new Error("Δεν βρέθηκε ο σύνδεσμος 'Καταχώριση Μεταβολής'");
+    if (!target)
+      throw new Error("Δεν βρέθηκε ο σύνδεσμος 'Καταχώριση Μεταβολής'");
     target.click();
   });
 
@@ -710,9 +723,17 @@ async function processDocx(arrayBuffer, replacements) {
   return zip.generateAsync({ type: "arraybuffer" });
 }
 
+function sanitizeFilenamePart(text) {
+  return text.replace(/[\\/:*?"<>|]/g, "_");
+}
+
 async function safeDownload(blob, filename) {
   const blobUrl = URL.createObjectURL(blob);
-  const downloadId = await chrome.downloads.download({ url: blobUrl, filename, saveAs: false });
+  const downloadId = await chrome.downloads.download({
+    url: blobUrl,
+    filename,
+    saveAs: false,
+  });
   return new Promise((resolve, reject) => {
     const listener = (delta) => {
       if (delta.id !== downloadId || !delta.state) return;
@@ -752,7 +773,10 @@ async function generateA130(
     idNumber: oldIdData.idNumber,
     surname: oldIdData.surname,
     firstName: oldIdData.firstName,
-    fatherName: oldIdData.fatherName === "Όνομα Πατέρα (Λατιν.) " ? "" : oldIdData.fatherName,
+    fatherName:
+      oldIdData.fatherName === "Όνομα Πατέρα (Λατιν.) "
+        ? ""
+        : oldIdData.fatherName,
     motherName: oldIdData.motherName,
     birthDate: oldIdData.birthDate,
     issuingAuthority: oldIdData.issuingAuth,
@@ -770,7 +794,17 @@ async function generateA130(
   const blob = new Blob([docx], {
     type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   });
-  await safeDownload(blob, `A130-${oldIdData.surname}-${oldIdData.issuingAuth.replace(/^\d+\s*-\s*/, "").trim()}.docx`);
+  const cleanSurname = sanitizeFilenamePart(oldIdData.surname);
+  const firstNameInitials = sanitizeFilenamePart(
+    oldIdData.firstName.slice(0, 3),
+  );
+  const cleanIssuingAuth = sanitizeFilenamePart(
+    oldIdData.issuingAuth.replace(/^\d+\s*-\s*/, "").trim(),
+  );
+  await safeDownload(
+    blob,
+    `A130-${cleanSurname}_${firstNameInitials}-${cleanIssuingAuth}.docx`,
+  );
 }
 
 // Main workflow
